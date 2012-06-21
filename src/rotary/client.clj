@@ -5,10 +5,13 @@
   (:import com.amazonaws.auth.BasicAWSCredentials
            com.amazonaws.services.dynamodb.AmazonDynamoDBClient
            [com.amazonaws.services.dynamodb.model
+            AttributeAction
             AttributeValue
+            AttributeValueUpdate
             Condition
             CreateTableRequest
             UpdateTableRequest
+            UpdateItemRequest
             DescribeTableRequest
             DescribeTableResult
             DeleteTableRequest
@@ -22,6 +25,7 @@
             ProvisionedThroughputDescription
             PutItemRequest
             ResourceNotFoundException
+            ReturnValue
             ScanRequest
             QueryRequest]))
 
@@ -205,6 +209,21 @@
   (.deleteItem
    (db-client cred)
    (DeleteItemRequest. table (item-key hash-key))))
+
+(defn increment-item
+  "Increments by long-typed value an item from a DynamoDB table defined by its
+  hash-key-value and attribute name and returns the new value."
+  [cred table hash-key-value attr value]
+  (let [items {attr (doto (AttributeValueUpdate.)
+                        (.withAction AttributeAction/ADD)
+                        (.withValue (to-attr-value value)))}
+        up-request (doto (UpdateItemRequest.)
+                     (.setTableName table)
+                     (.setKey (item-key hash-key-value))
+                     (.setReturnValues ReturnValue/UPDATED_NEW)
+                     (.setAttributeUpdates items))
+        up-result (.updateItem (db-client cred) up-request)]
+    (Long/parseLong (.getN (get (.getAttributes up-result) attr)))))
 
 (defn scan
   "Return the items in a DynamoDB table."
